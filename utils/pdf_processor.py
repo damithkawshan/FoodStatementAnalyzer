@@ -15,6 +15,13 @@ def extract_text_from_image(image_file):
     except Exception as e:
         raise Exception(f"Error processing image: {str(e)}")
 
+def save_raw_text(text):
+    """Save raw extracted text to a file."""
+    with open('raw_extracted_text.txt', 'w', encoding='utf-8') as f:
+        f.write("Raw Extracted Text\n")
+        f.write("=================\n\n")
+        f.write(text)
+
 def detect_statement_format(text):
     """
     Detect bank statement format based on content patterns.
@@ -65,6 +72,9 @@ def extract_transactions_from_file(file):
             text = "\n".join(page.extract_text() for page in pdf_reader.pages)
         else:
             text = extract_text_from_image(file)
+
+        # Save raw text first
+        save_raw_text(text)
 
         # Detect statement format
         format_name, currency, date_format = detect_statement_format(text)
