@@ -2,94 +2,95 @@ import PyPDF2
 import pandas as pd
 import re
 from datetime import datetime
+from PIL import Image
+import pytesseract
+from io import BytesIO
 
-def extract_transactions_from_pdf(pdf_file):
+def extract_text_from_image(image_file):
+    """Extract text from image using OCR."""
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image)
+        return text
+    except Exception as e:
+        raise Exception(f"Error processing image: {str(e)}")
+
+def extract_transactions_from_file(file):
     """
-    Extract transactions from PDF bank statement with improved pattern matching.
+    Extract transactions from PDF bank statement or image with improved pattern matching.
 
     Args:
-        pdf_file: BytesIO object containing PDF data
+        file: BytesIO object containing PDF or image data
 
     Returns:
         pandas DataFrame with transactions
     """
     try:
-        # Read PDF
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        # Try to determine if it's PDF or image
+        try:
+            PyPDF2.PdfReader(file)
+            is_pdf = True
+        except:
+            is_pdf = False
 
-        # Extract text from all pages
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
+        # Reset file pointer
+        file.seek(0)
 
-        # Enhanced patterns for different date formats
-        date_patterns = [
-            r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # DD/MM/YYYY, MM/DD/YYYY
-            r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',    # YYYY/MM/DD
-            r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}',  # January 1, 2024
-            r'\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}'     # 1 January 2024
-        ]
-
-        # Enhanced amount pattern
-        amount_pattern = r'\$?\s*-?\d{1,3}(?:,\d{3})*\.\d{2}'
+        # Extract text based on file type
+        if is_pdf:
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = "\n".join(page.extract_text() for page in pdf_reader.pages)
+        else:
+            text = extract_text_from_image(file)
 
         # Split text into lines and process each line
         transactions = []
         lines = text.split('\n')
 
+        date_pattern = r'\d{2}/\d{2}/\d{4}'  # DD/MM/YYYY format
+        amount_pattern = r'\d+\.\d{2}'  # Matches decimal amounts
+
+        current_date = None
+
         for line in lines:
-            # Skip empty lines
-            if not line.strip():
+            line = line.strip()
+            if not line:
                 continue
 
-            # Try each date pattern
-            date_found = None
-            for pattern in date_patterns:
-                dates = re.findall(pattern, line)
-                if dates:
-                    date_found = dates[0]
-                    break
+            # Look for date
+            dates = re.findall(date_pattern, line)
+            if dates:
+                try:
+                    current_date = pd.to_datetime(dates[0], format='%d/%m/%Y')
+                except:
+                    continue
 
-            # Find amounts
+            # Look for amounts
             amounts = re.findall(amount_pattern, line)
 
-            if date_found and amounts:
+            if current_date and amounts:
                 try:
-                    # Parse date with multiple format attempts
-                    date = None
-                    date_formats = [
-                        '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d',
-                        '%B %d, %Y', '%d %B %Y',
-                        '%b %d, %Y', '%d %b %Y'
-                    ]
-
-                    for fmt in date_formats:
-                        try:
-                            date = pd.to_datetime(date_found, format=fmt)
-                            break
-                        except:
-                            continue
-
-                    if date is None:
-                        date = pd.to_datetime(date_found)
-
-                    # Clean amount (remove $ and ,)
-                    amount_str = amounts[-1].replace('$', '').replace(',', '')
+                    # Determine if it's withdrawal or deposit
+                    amount_str = amounts[-1]
                     amount = float(amount_str)
 
-                    # Extract description (remove date and amount from line)
-                    description = line.strip()
-                    for pattern in date_patterns:
-                        description = re.sub(pattern, '', description)
+                    # Extract description (remove date and amount)
+                    description = line
+                    description = re.sub(date_pattern, '', description)
                     description = re.sub(amount_pattern, '', description)
-                    description = ' '.join(description.split())  # Clean up whitespace
+                    description = ' '.join(description.split())
 
-                    if description and date and amount:
+                    # Skip header rows
+                    if any(header in description.upper() for header in ['BALANCE', 'DATE', 'DESCRIPTION']):
+                        continue
+
+                    if description and amount > 0:
                         transactions.append({
-                            'date': date,
-                            'description': description,
-                            'amount': abs(amount)  # Store positive values
+                            'date': current_date,
+                            'description': description.strip(),
+                            'amount': amount
                         })
+
                 except (ValueError, IndexError) as e:
                     print(f"Error processing line: {line}")
                     print(f"Error details: {str(e)}")
@@ -99,11 +100,10 @@ def extract_transactions_from_pdf(pdf_file):
         if transactions:
             df = pd.DataFrame(transactions)
             df = df.sort_values('date')
-            # Remove any duplicate transactions
             df = df.drop_duplicates(subset=['date', 'description', 'amount'])
             return df
 
         return pd.DataFrame()
 
     except Exception as e:
-        raise Exception(f"Error processing PDF: {str(e)}")
+        raise Exception(f"Error processing file: {str(e)}")
