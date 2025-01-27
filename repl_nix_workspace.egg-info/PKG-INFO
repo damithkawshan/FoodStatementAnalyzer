@@ -1,0 +1,11 @@
+Metadata-Version: 2.2
+Name: repl-nix-workspace
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Requires-Dist: pandas>=2.2.3
+Requires-Dist: pillow>=11.1.0
+Requires-Dist: plotly>=5.24.1
+Requires-Dist: pypdf2>=3.0.1
+Requires-Dist: pytesseract>=0.3.13
+Requires-Dist: streamlit>=1.41.1
