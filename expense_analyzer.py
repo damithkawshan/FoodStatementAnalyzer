@@ -11,6 +11,20 @@ st.set_page_config(
     layout="wide"
 )
 
+def save_transactions_to_file(transactions_df):
+    """Save transactions to records.txt file."""
+    with open('records.txt', 'w') as f:
+        f.write("Food Expense Records\n")
+        f.write("===================\n\n")
+
+        for _, row in transactions_df.iterrows():
+            f.write(f"Date: {row['date'].strftime('%d/%m/%Y')}\n")
+            f.write(f"Description: {row['description']}\n")
+            f.write(f"Amount: SGD {row['amount']:.2f}\n")
+            if 'category' in row:
+                f.write(f"Category: {row['category']}\n")
+            f.write("-" * 50 + "\n")
+
 def main():
     st.title("🍽️ Food Expense Analyzer")
     st.write("Upload your bank statement (PDF or Image) to analyze food-related expenses")
@@ -28,6 +42,10 @@ def main():
             if transactions_df is not None and not transactions_df.empty:
                 # Classify food expenses
                 food_expenses = classify_food_expenses(transactions_df)
+
+                # Save transactions to file
+                save_transactions_to_file(food_expenses)
+                st.success("✅ Transactions saved to records.txt")
 
                 # Display summary statistics
                 st.subheader("📊 Summary Statistics")
@@ -85,6 +103,9 @@ def main():
 
         **Privacy Note:**
         Your data is processed locally and is not stored or shared.
+
+        **Export:**
+        Transactions are automatically saved to 'records.txt'
         """)
 
 if __name__ == "__main__":
