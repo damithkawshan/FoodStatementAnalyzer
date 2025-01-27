@@ -15,9 +15,32 @@ def extract_text_from_image(image_file):
     except Exception as e:
         raise Exception(f"Error processing image: {str(e)}")
 
+def detect_statement_format(text):
+    """
+    Detect bank statement format based on content patterns.
+    Returns a tuple of (format_name, currency_symbol, date_format)
+    """
+    text_lower = text.lower()
+
+    # Singapore Bank Format
+    if 'singapore dollar' in text_lower or 'sgd' in text_lower:
+        return ('singapore', 'SGD', '%d/%m/%Y')
+
+    # US Bank Format
+    elif 'usd' in text_lower or '$' in text_lower:
+        return ('us', 'USD', '%m/%d/%Y')
+
+    # UK Bank Format
+    elif 'gbp' in text_lower or '£' in text_lower:
+        return ('uk', 'GBP', '%d/%m/%Y')
+
+    # Default format
+    return ('default', 'SGD', '%d/%m/%Y')
+
 def extract_transactions_from_file(file):
     """
     Extract transactions from PDF bank statement or image with improved pattern matching.
+    Supports multiple bank statement formats.
 
     Args:
         file: BytesIO object containing PDF or image data
@@ -43,52 +66,79 @@ def extract_transactions_from_file(file):
         else:
             text = extract_text_from_image(file)
 
+        # Detect statement format
+        format_name, currency, date_format = detect_statement_format(text)
+
+        # Define format-specific patterns
+        patterns = {
+            'singapore': {
+                'date': r'\d{2}/\d{2}/\d{4}',
+                'amount': r'\d+\.\d{2}',
+                'balance': r'Balance|SGD',
+            },
+            'us': {
+                'date': r'\d{2}/\d{2}/\d{4}',
+                'amount': r'\$?\s*\d{1,3}(?:,\d{3})*\.\d{2}',
+                'balance': r'Balance|\$',
+            },
+            'uk': {
+                'date': r'\d{2}/\d{2}/\d{4}',
+                'amount': r'£?\s*\d{1,3}(?:,\d{3})*\.\d{2}',
+                'balance': r'Balance|£',
+            },
+            'default': {
+                'date': r'\d{2}/\d{2}/\d{4}',
+                'amount': r'\d+\.\d{2}',
+                'balance': r'Balance',
+            }
+        }
+
+        current_patterns = patterns[format_name]
+
         # Split text into lines and process each line
         transactions = []
         lines = text.split('\n')
 
-        date_pattern = r'\d{2}/\d{2}/\d{4}'  # DD/MM/YYYY format
-        amount_pattern = r'\d+\.\d{2}'  # Matches decimal amounts
-
         current_date = None
-
         for line in lines:
             line = line.strip()
             if not line:
                 continue
 
             # Look for date
-            dates = re.findall(date_pattern, line)
+            dates = re.findall(current_patterns['date'], line)
             if dates:
                 try:
-                    current_date = pd.to_datetime(dates[0], format='%d/%m/%Y')
+                    current_date = pd.to_datetime(dates[0], format=date_format)
                 except:
                     continue
 
             # Look for amounts
-            amounts = re.findall(amount_pattern, line)
+            amounts = re.findall(current_patterns['amount'], line)
 
             if current_date and amounts:
                 try:
-                    # Determine if it's withdrawal or deposit
-                    amount_str = amounts[-1]
+                    # Clean amount string
+                    amount_str = amounts[-1].replace(currency, '').replace(',', '').strip()
                     amount = float(amount_str)
 
-                    # Extract description (remove date and amount)
+                    # Extract description
                     description = line
-                    description = re.sub(date_pattern, '', description)
-                    description = re.sub(amount_pattern, '', description)
+                    description = re.sub(current_patterns['date'], '', description)
+                    description = re.sub(current_patterns['amount'], '', description)
+                    description = re.sub(current_patterns['balance'], '', description)
                     description = ' '.join(description.split())
 
-                    # Skip header rows
-                    if any(header in description.upper() for header in ['BALANCE', 'DATE', 'DESCRIPTION']):
+                    # Skip header rows and balance lines
+                    if any(header in description.upper() for header in ['BALANCE', 'DATE', 'DESCRIPTION', 'WITHDRAWAL', 'DEPOSIT']):
                         continue
 
                     if description and amount > 0:
                         transactions.append({
                             'date': current_date,
                             'description': description.strip(),
-                            'amount': amount
+                            'amount': amount,
+                            'currency': currency
                         })
 
                 except (ValueError, IndexError) as e:

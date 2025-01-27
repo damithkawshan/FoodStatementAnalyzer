@@ -20,7 +20,7 @@ def save_transactions_to_file(transactions_df):
         for _, row in transactions_df.iterrows():
             f.write(f"Date: {row['date'].strftime('%d/%m/%Y')}\n")
             f.write(f"Description: {row['description']}\n")
-            f.write(f"Amount: SGD {row['amount']:.2f}\n")
+            f.write(f"Amount: {row['currency']} {row['amount']:.2f}\n")
             if 'category' in row:
                 f.write(f"Category: {row['category']}\n")
             f.write("-" * 50 + "\n")
@@ -47,6 +47,9 @@ def main():
                 save_transactions_to_file(food_expenses)
                 st.success("✅ Transactions saved to records.txt")
 
+                # Get currency from the first transaction
+                currency = food_expenses['currency'].iloc[0]
+
                 # Display summary statistics
                 st.subheader("📊 Summary Statistics")
                 col1, col2, col3 = st.columns(3)
@@ -55,15 +58,15 @@ def main():
                 avg_transaction = food_expenses['amount'].mean()
                 transaction_count = len(food_expenses)
 
-                col1.metric("Total Food Expenses", f"SGD {total_food_expense:.2f}")
-                col2.metric("Average Transaction", f"SGD {avg_transaction:.2f}")
+                col1.metric("Total Food Expenses", f"{currency} {total_food_expense:.2f}")
+                col2.metric("Average Transaction", f"{currency} {avg_transaction:.2f}")
                 col3.metric("Number of Food Transactions", transaction_count)
 
                 # Display transactions
                 st.subheader("🧾 Food-Related Transactions")
-                # Format the amount column to show SGD
+                # Format the amount column to show currency
                 display_df = food_expenses.copy()
-                display_df['amount'] = display_df['amount'].apply(lambda x: f"SGD {x:.2f}")
+                display_df['amount'] = display_df.apply(lambda x: f"{x['currency']} {x['amount']:.2f}", axis=1)
                 st.dataframe(display_df)
 
                 # Visualizations
@@ -72,7 +75,7 @@ def main():
                 # Time series plot
                 fig1 = px.line(food_expenses, x='date', y='amount',
                              title='Food Expenses Over Time',
-                             labels={'amount': 'Amount (SGD)', 'date': 'Date'})
+                             labels={'amount': f'Amount ({currency})', 'date': 'Date'})
                 st.plotly_chart(fig1, use_container_width=True)
 
                 # Category breakdown if categories exist
@@ -99,6 +102,7 @@ def main():
         **Supported Formats:**
         - PDF bank statements
         - Image files (PNG, JPG)
+        - Multiple bank statement formats (SGD, USD, GBP)
         - Statements should contain transaction details
 
         **Privacy Note:**
