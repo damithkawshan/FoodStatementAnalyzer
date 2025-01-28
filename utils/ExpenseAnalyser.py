@@ -5,7 +5,7 @@ import yaml
 class ExpenseAnalyser:
     def __init__(self):
         self.transactions = None
-        with open('attached_assets/categories_new.yaml', 'r') as file:
+        with open('attached_assets/categories.yaml', 'r') as file:
             self.classification_map = yaml.safe_load(file)
         self.known_types = list(self.classification_map.keys())
 
