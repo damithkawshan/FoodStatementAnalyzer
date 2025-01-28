@@ -2,8 +2,9 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import pdftotext as pdf
-import re
-from utils.expense_classifier import classify_food_expenses
+from utils.TransactionClassifier import TransactionClassifier as ta
+import utils.BankConfig as bc
+from utils.ExpenseAnalyser import ExpenseAnalyser as ea
 import io
 
 st.set_page_config(
@@ -12,54 +13,6 @@ st.set_page_config(
     layout="wide"
 )
 
-class BankConfig:
-    """
-    Base class for bank configurations.
-    Each subclass should implement its own parsing logic.
-    """
-    def __init__(self, name, company_reg_no, pattern):
-        self.name = name
-        self.company_reg_no = company_reg_no
-        self.pattern = pattern
-
-
-class DBSBankConfig(BankConfig):
-    def __init__(self):
-        super().__init__(
-            name="DBS Bank Ltd",
-            company_reg_no="Co. Reg. No. 196800306E",
-            pattern=r"^\s*(\d{2} \w{3}) (.+?) (\d+\.\d{2}) (DB)$"
-        )
-    
-    def parse_transaction(self, line):
-        match = re.match(self.pattern, line)
-        if match:
-            return {
-                "date": match.group(1),
-                "description": match.group(2),
-                "amount": float(match.group(3)),
-                "type": match.group(4)
-            }
-        return None
-
-class CitiBankConfig(BankConfig):
-    def __init__(self):
-        super().__init__(
-            name="Citi Bank Singapore Ltd",
-            company_reg_no="Co Reg No: 200309485K",
-            pattern=r"^\s*(\d{2} \w{3}) (.+?) (\d+\.\d{2})$"
-        )
-    
-    def parse_transaction(self, line):
-        match = re.match(self.pattern, line)
-        if match:
-            description = re.sub(r"\b(SINGAPORE|SG)\b", "", match.group(2), flags=re.IGNORECASE).strip()
-            return {
-                "date": match.group(1),
-                "description": description,
-                "amount": float(match.group(3))
-            }
-        return None
 
 class BankStatementParser:
     """
@@ -67,10 +20,11 @@ class BankStatementParser:
     """
     def __init__(self):
         self.bank_configs = [
-            DBSBankConfig(),
-            CitiBankConfig()
+            bc.DBSBankConfig(),
+            bc.CitiBankConfig()
         ]
         self.bank_name = None
+        self.bank_config = None
 
     def detect_bank(self, first_page_text):
         for config in self.bank_configs:
@@ -82,45 +36,79 @@ class BankStatementParser:
     def parse_pdf(self, pdf_file):
         pdfstream = pdf.PDF(pdf_file, physical=True)
         first_page_text = pdfstream[0]
-        bank_config = self.detect_bank(first_page_text)
+        self.bank_config = self.detect_bank(first_page_text)
+        bank_metadata = self.bank_config.get_statement_metadata(pdf_file.name)
+        # st.write(f"Bank Name: {bank_metadata['bank']}")
+        # st.write(f"Company Reg No: {bank_metadata['compang_reg_no']}")
+        # st.write(f"Statement Month: {bank_metadata['month']}")
+        # st.write(f"Statement Year: {bank_metadata['year']}")
 
-        if not bank_config:
+        if not self.bank_config:
             raise ValueError("Unable to detect bank from the statement.")
 
         transactions = []
+        transaction_idx = 0
         for page in pdfstream:
             lines = page.split('\n')
             for line in lines:
                 line = line.strip()
-                transaction = bank_config.parse_transaction(line)
+                transaction = self.bank_config.parse_transaction(line)
                 if transaction:
+                    transaction['transaction_idx'] = transaction_idx
                     transactions.append(transaction)
+                    transaction_idx += 1
 
         return transactions
+    
+class ExtractTransactions:
+    def __init__(self, transactions):
+        self.transactions = transactions
+
+    def extract_transactions(self):
+        st.write("Upload your bank statement (PDF or Image) to analyze food-related expenses")
+
+        uploaded_file = st.file_uploader("Choose a file", type=["pdf"])
+
+        if uploaded_file is not None:
+            parser = BankStatementParser()
+
+            try:
+                # Parse the PDF and extract transactions
+                transactions = parser.parse_pdf(uploaded_file)
+
+                if transactions:
+                    transactions_df = pd.DataFrame(transactions)
+
+                    df_metadata = {"bank_id":parser.bank_config.company_reg_no,
+                                   "year": parser.bank_config.year, 
+                                   "month": parser.bank_config.month}
+                    
+                    st.subheader(f"Statement Data from {parser.bank_name} | {parser.bank_config.month} {parser.bank_config.year}")
+
+                    analyzer = ta(transactions_df,df_metadata)
+                    analyzer.render_streamlit_ui()
+
+                else:
+                    st.warning("No transactions detected in the uploaded file.")
+
+            except Exception as e:
+                st.error(f"Error processing the file: {str(e)}")
+                st.write("Please make sure you've uploaded a valid bank statement file.")
 
 def main():
-    st.title("🍽️ Food Expense Analyzer")
-    st.write("Upload your bank statement (PDF or Image) to analyze food-related expenses")
+    # Create tab for category wise analysis
+    tab1, tab2 = st.tabs(["Category Analysis", "Transaction Details"])
+    extractor = ExtractTransactions([])
+    expense_analyser = ea()
 
-    uploaded_file = st.file_uploader("Choose a file", type=["pdf"])
+    with tab1:
+        st.subheader("Category Wise Analysis")
+        extractor.extract_transactions()
+        # st.write(category_summary)
 
-    if uploaded_file is not None:
-        parser = BankStatementParser()
-
-        try:
-            # Parse the PDF and extract transactions
-            transactions = parser.parse_pdf(uploaded_file)
-
-            if transactions:
-                transactions_df = pd.DataFrame(transactions)
-                st.subheader(f"Expenses : {parser.bank_name}")
-                st.dataframe(transactions_df)
-            else:
-                st.warning("No transactions detected in the uploaded file.")
-
-        except Exception as e:
-            st.error(f"Error processing the file: {str(e)}")
-            st.write("Please make sure you've uploaded a valid bank statement file.")
+    with tab2:
+        st.subheader("Transaction Details")
+        expense_analyser.get_transactions_df()
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,123 @@
+Grocery:
+  colorcode: '#FFB3B3'
+  items:
+    - giant
+    - fairprice
+    - 7-eleven
+    - prime
+    - sheng siong
+    - cold storage
+    - ntuc
+    - ntuc fairprice
+    - ntuc finest
+    - ntuc extra
+    - ntuc xtra
+    - ntuc online
+    - ntuc fairprice online
+    - ntuc finest online
+    - ntuc extra online
+Transport:
+  colorcode: '#B3FFB3'
+  items:
+    - grab
+    - bus
+    - mrt
+Airticket:
+  colorcode: '#B3B3FF'
+  items:
+    - airasia
+    - scoot
+    - singapore airlines
+    - jetstar
+    - cathay pacific
+    - emirates
+    - qatar airways
+    - malaysia airlines
+    - silkair
+    - sia
+    - sia.com
+    - silkair.com
+    - jetstar.com
+    - cathaypacific.com
+    - emirates.com
+    - qatarairways.com
+    - malaysiaairlines.com
+    - airasia.com
+Health:
+  colorcode: '#FFB3E6'
+  items:
+    - fullerton health
+    - pharmacy
+    - guardian
+    - watsons
+    - vitamins
+    - medical
+    - clinic
+    - hospital
+Shopping:
+  colorcode: '#E6B3FF'
+  items:
+    - daiso
+    - uniqlo
+    - mustafa
+    - cotton on
+    - ikea
+    - shopee
+    - lazada
+    - zalora
+    - amazon
+    - taobao
+    - ezbuy
+    - qoo10
+    - shopee.sg
+    - lazada.sg
+    - zalora.sg
+    - amazon.sg
+    - taobao.com
+    - ezbuy.sg
+    - qoo10.sg
+Entertainment:
+  colorcode: '#B3FFE6'
+  items:
+    - gv
+    - cinema
+    - spotify
+Dining:
+  colorcode: '#FFE6B3'
+  items:
+    - vending
+    - kfc
+    - bakery
+    - pasta
+    - kitchen
+    - stuff'd
+    - the crowded
+    - crowded bowl
+    - koufu
+    - pizza
+    - mcdonalds
+    - cafe
+    - starbucks
+    - ntu sp
+    - ntu south sp
+    - mcdonalds
+    - coffee
+    - food
+    - restaurant
+    - dining
+    - eatery
+    - cafe
+    - canteen
+    - hawker
+    - kopitiam
+    - food court
+    - foodfare
+    - food junction
+    - f&b management
+    - tim hortons
+Utilities:
+  colorcode: '#B3E6FF'
+  items:
+    - starhub
+    - internet
+    - water
